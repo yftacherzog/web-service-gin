@@ -1,6 +1,10 @@
 package main
 
 import (
+	"encoding/json"
+	"flag"
+	"fmt"
+	"io/ioutil"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -21,11 +25,16 @@ var albums = []album{
 	{ID: "3", Title: "Sarah Vaughan and Clifford Brown", Artist: "Sarah Vaughan", Price: 39.99},
 }
 
+// albums file path
+var albumsPath string
+
 func main() {
+	albumsPath = *flag.String("path", "/tmp/albums.json", "path to store the albums")
 	router := gin.Default()
 	router.GET("/albums", getAlbums)
 	router.GET("/albums/:id", getAlbumByID)
 	router.POST("/albums", postAlbums)
+	albums = loadFromFile(albumsPath)
 
 	router.Run("localhost:8080")
 }
@@ -46,6 +55,7 @@ func postAlbums(c *gin.Context) {
 
 	// Add the new album to the slice.
 	albums = append(albums, newAlbum)
+	writeToFile(albums, albumsPath)
 	c.IndentedJSON(http.StatusCreated, newAlbum)
 }
 
@@ -63,4 +73,32 @@ func getAlbumByID(c *gin.Context) {
 		}
 	}
 	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "album not found"})
+}
+
+func writeToFile(albs []album, path string) {
+	file, _ := json.MarshalIndent(albs, "", " ")
+
+	_ = ioutil.WriteFile(path, file, 0644)
+}
+
+func loadFromFile(path string) []album {
+	body, err := ioutil.ReadFile(path)
+	if err != nil {
+		fmt.Println(err)
+		fmt.Println("Unable to load albums file. Using new file", path)
+		return albums
+	}
+
+	var albs []album
+
+	err = json.Unmarshal(body, &albs)
+	if err != nil {
+		fmt.Println(err)
+		fmt.Println("Unable to process albums file. Using new file", path)
+		return albums
+	}
+
+	fmt.Println("Using exiting albums file at", path)
+	// fmt.Println(fmt.Sprintln("Using exiting albums file at", path))
+	return albs
 }
